@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import joblib
 import os
@@ -50,10 +50,20 @@ def load_model():
 load_model()
 
 
+@app.route('/')
+def home():
+    return "<h2>API is running! Use POST /predict with JSON data.</h2>"
+
+
 # Predict route
 @app.route('/predict', methods=['POST'])
 def predict():
+    global model
     try:
+        # Debug: Log incoming request
+        print("Headers:", request.headers)
+        print("Raw data:", request.data)
+
         # Get the data from the request
         data = request.get_json(force=True)
 
@@ -62,9 +72,6 @@ def predict():
         office_end_time = data['office_end_time']
         load_during_office_time = data['load_during_office_time']
         load_after_office_time = data['load_after_office_time']
-
-        # Load the trained model
-        model = joblib.load("model.pkl")
 
         # Prepare input for prediction
         input_data = [[office_start_time, office_end_time, load_during_office_time, load_after_office_time]]
@@ -76,7 +83,7 @@ def predict():
         return jsonify({'prediction': prediction[0]})
 
     except Exception as e:
-        return jsonify({'error': str(e)})
+        return jsonify({'error': str(e)}), 400
 
 
 if __name__ == '__main__':

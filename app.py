@@ -8,9 +8,12 @@ import os
 
 app = Flask(__name__)
 
-# Load dataset and train the model once at the beginning
-@app.before_first_request
+# Global variable to hold the trained model
+model = None
+
+# Train and load the model when the app starts
 def load_model():
+    global model
     try:
         # Load dataset
         df = pd.read_excel("office_load_dataset_24hr.xlsx")
@@ -41,6 +44,10 @@ def load_model():
 
     except Exception as e:
         print(f"Error during model training: {str(e)}")
+
+
+# Train and load model when app starts
+load_model()
 
 
 # Predict route

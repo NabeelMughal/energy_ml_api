@@ -8,10 +8,7 @@ import os
 
 app = Flask(__name__)
 
-# Global variable to hold the trained model
-model = None
-
-# Train and load the model when the app starts
+# Train model at startup
 def load_model():
     global model
     try:
@@ -22,50 +19,47 @@ def load_model():
         df["Office Start Time"] = pd.to_datetime(df["Office Start Time"], format="%H:%M").dt.hour * 60 + pd.to_datetime(df["Office Start Time"], format="%H:%M").dt.minute
         df["Office End Time"] = pd.to_datetime(df["Office End Time"], format="%H:%M").dt.hour * 60 + pd.to_datetime(df["Office End Time"], format="%H:%M").dt.minute
 
-        # Feature matrix and target
+        # Features and target
         X = df[["Office Start Time", "Office End Time", "Load During Office Time", "Load After Office Time"]]
         y = df["Action"]
 
-        # Split dataset
+        # Train/test split
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         # Train model
         model = DecisionTreeClassifier(random_state=42)
         model.fit(X_train, y_train)
 
-        # Save model
+        # Save model to file
         joblib.dump(model, "model.pkl")
 
-        # Calculate accuracy
+        # Print accuracy for debugging
         y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-
-        print(f"Model Trained Successfully! Test Accuracy: {accuracy:.2f}")
+        print(f"Model trained successfully. Test Accuracy: {accuracy_score(y_test, y_pred):.2f}")
 
     except Exception as e:
-        print(f"Error during model training: {str(e)}")
+        print(f"Model loading/training failed: {str(e)}")
 
-
-# Train and load model when app starts
+# Load model on startup
+model = None
 load_model()
 
-
+# Root route
 @app.route('/')
 def home():
-    return "<h2>API is running! Use POST /predict with JSON data.</h2>"
+    return "API is running! Use POST /predict with JSON data."
 
-
-# Predict route
+# Prediction route
 @app.route('/predict', methods=['POST'])
 def predict():
-    global model
     try:
-        # Debug: Log incoming request
+        # DEBUG PRINTS: Comment out in production
         print("Headers:", request.headers)
-        print("Raw data:", request.data)
+        print("Raw Body:", request.data)
 
-        # Get the data from the request
+        # Read input JSON
         data = request.get_json(force=True)
+        print("Parsed JSON:", data)
 
         # Extract features
         office_start_time = data['office_start_time']
@@ -73,19 +67,20 @@ def predict():
         load_during_office_time = data['load_during_office_time']
         load_after_office_time = data['load_after_office_time']
 
-        # Prepare input for prediction
-        input_data = [[office_start_time, office_end_time, load_during_office_time, load_after_office_time]]
+        # Load model (optional since already loaded)
+        model = joblib.load("model.pkl")
 
-        # Make prediction
+        # Prepare input and predict
+        input_data = [[office_start_time, office_end_time, load_during_office_time, load_after_office_time]]
         prediction = model.predict(input_data)
 
-        # Return prediction as response
+        # Return prediction
         return jsonify({'prediction': prediction[0]})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-
+# Run app
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)

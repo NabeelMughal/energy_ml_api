@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: energy-ml-api
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python app.py

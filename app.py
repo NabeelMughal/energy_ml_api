@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # ✅ Import CORS
 import pandas as pd
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
@@ -9,6 +10,7 @@ import os
 from datetime import datetime
 
 app = Flask(__name__)
+CORS(app)  # ✅ Enable CORS for all routes and origins
 
 model = None
 
@@ -56,8 +58,8 @@ def predict():
         data = request.get_json(force=True)
 
         # Get time strings
-        start_time_str = data['office_start_time']  # e.g., "05:09"
-        end_time_str = data['office_end_time']      # e.g., "05:11"
+        start_time_str = data['office_start_time']
+        end_time_str = data['office_end_time']
 
         # Convert to minutes
         start_minutes = time_to_minutes(start_time_str)

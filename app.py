@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
@@ -8,8 +8,9 @@ import os
 
 app = Flask(__name__)
 
-@app.route('/')
-def train_model():
+# Load dataset and train the model once at the beginning
+@app.before_first_request
+def load_model():
     try:
         # Load dataset
         df = pd.read_excel("office_load_dataset_24hr.xlsx")
@@ -27,22 +28,49 @@ def train_model():
 
         # Train model
         model = DecisionTreeClassifier(random_state=42)
-        cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
         model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
 
         # Save model
         joblib.dump(model, "model.pkl")
 
-        return f"""
-        <h2>Model Trained Successfully!</h2>
-        <p><strong>Cross-Validation Accuracy:</strong> {cv_scores.mean():.2f}</p>
-        <p><strong>Test Accuracy:</strong> {accuracy_score(y_test, y_pred):.2f}</p>
-        <p><strong>Model File Saved:</strong> model.pkl</p>
-        """
+        # Calculate accuracy
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        print(f"Model Trained Successfully! Test Accuracy: {accuracy:.2f}")
 
     except Exception as e:
-        return f"<h3>Error occurred:</h3><pre>{str(e)}</pre>"
+        print(f"Error during model training: {str(e)}")
+
+
+# Predict route
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        # Get the data from the request
+        data = request.get_json(force=True)
+
+        # Extract features
+        office_start_time = data['office_start_time']
+        office_end_time = data['office_end_time']
+        load_during_office_time = data['load_during_office_time']
+        load_after_office_time = data['load_after_office_time']
+
+        # Load the trained model
+        model = joblib.load("model.pkl")
+
+        # Prepare input for prediction
+        input_data = [[office_start_time, office_end_time, load_during_office_time, load_after_office_time]]
+
+        # Make prediction
+        prediction = model.predict(input_data)
+
+        # Return prediction as response
+        return jsonify({'prediction': prediction[0]})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

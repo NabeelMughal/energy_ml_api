@@ -1,29 +1,27 @@
-from flask import Flask, request, jsonify
-import joblib
+# Convert times to minutes since midnight
+df["Office Start Time"] = pd.to_datetime(df["Office Start Time"], format="%H:%M").dt.hour * 60 + pd.to_datetime(df["Office Start Time"], format="%H:%M").dt.minute
+df["Office End Time"] = pd.to_datetime(df["Office End Time"], format="%H:%M").dt.hour * 60 + pd.to_datetime(df["Office End Time"], format="%H:%M").dt.minute
 
-app = Flask(__name__)
+# Features and target
+X = df[["Office Start Time", "Office End Time", "Load During Office Time", "Load After Office Time"]]
+y = df["Action"]
 
-# Load trained model
-model = joblib.load("model.pkl")
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-@app.route('/')
-def index():
-    return "Model is running!"
+# Train model
+model = DecisionTreeClassifier(random_state=42)
+cv_scores = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.json
-    features = [[
-        data["office_start_time"],
-        data["office_end_time"],
-        data["load_during_office"],
-        data["load_after_office"]
-    ]]
-    prediction = model.predict(features)
-    return jsonify({"prediction": prediction[0]})
+# Save model
+joblib.dump(model, "model.pkl")
 
-import os
+return f"""
+<h3>Model Trained Successfully</h3>
+<p>Cross-Validation Accuracy: {cv_scores.mean():.2f}</p>
+<p>Test Accuracy: {accuracy_score(y_test, y_pred):.2f}</p>
+<p>Model saved as model.pkl</p>
+"""
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)

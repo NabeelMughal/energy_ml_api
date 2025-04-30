@@ -1,6 +1,7 @@
-flask-cors
 flask
+flask-cors
 pandas
 scikit-learn
 joblib
 openpyxl
+firebase-admin

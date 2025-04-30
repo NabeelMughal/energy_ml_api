@@ -1,4 +1,20 @@
-from flask import Flask, jsonify
+import firebase_admin
+from firebase_admin import credentials, db
+import json
+import os
+
+# Load Firebase credentials from environment variable
+firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+creds_dict = json.loads(firebase_creds_json)
+
+cred = credentials.Certificate(creds_dict)
+
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
+})
+
+# Your existing imports and model code
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pandas as pd
 import numpy as np
@@ -8,129 +24,79 @@ from sklearn.metrics import accuracy_score
 import joblib
 import os
 from datetime import datetime
-import time
-import firebase_admin
-from firebase_admin import credentials, db
-import json
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Enable CORS for all routes and origins
 
 model = None
-dataset_file = "office_load_dataset_24hr.xlsx"
 
-# Load Firebase credentials from environment variable
-cred_data = json.loads(os.environ['FIREBASE_CREDENTIALS_JSON'])
-cred = credentials.Certificate(cred_data)
-
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
-})
-
+# Function to convert time string to minutes
 def time_to_minutes(t_str):
     time_obj = datetime.strptime(t_str, "%H:%M")
     return time_obj.hour * 60 + time_obj.minute
 
+# Load and train the model
 def load_model():
     global model
     try:
-        df = pd.read_excel(dataset_file)
+        df = pd.read_excel("office_load_dataset_24hr.xlsx")
 
+        # Convert times to minutes since midnight
         df["Office Start Time"] = df["Office Start Time"].apply(time_to_minutes)
         df["Office End Time"] = df["Office End Time"].apply(time_to_minutes)
 
+        # Features and label
         X = df[["Office Start Time", "Office End Time", "Load During Office Time", "Load After Office Time"]]
         y = df["Action"]
 
+        # Split and train
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         model = DecisionTreeClassifier(random_state=42)
         model.fit(X_train, y_train)
 
+        # Save trained model
         joblib.dump(model, "model.pkl")
 
         accuracy = accuracy_score(y_test, model.predict(X_test))
         print(f"✅ Model trained. Test Accuracy: {accuracy:.2f}")
+
     except Exception as e:
         print(f"❌ Model training failed: {str(e)}")
 
-# Train on startup
+# Train once at startup
 load_model()
 
 @app.route('/', methods=['GET'])
 def index():
-    return "✅ Auto ML API is running!"
+    return "✅ API is running! Use POST /predict with JSON data."
 
-@app.route('/auto-predict', methods=['GET'])
-def auto_predict():
+@app.route('/predict', methods=['POST'])
+def predict():
     try:
         global model
+        if model is None:
+            model = joblib.load("model.pkl")
 
-        # Step 1: Get initial load status
-        ref = db.reference('/')
-        snapshot = ref.get()
-        b1 = snapshot.get('B1', '0')
-        b2 = snapshot.get('B2', '0')
-        b3 = snapshot.get('B3', '0')
-        load_during = 1.0 if b1 == '1' or b2 == '1' or b3 == '1' else 0.0
+        data = request.get_json(force=True)
 
-        # Step 2: Wait 2 minutes
-        time.sleep(120)
+        # Extract input values
+        start_time_str = data['office_start_time']
+        end_time_str = data['office_end_time']
+        load_during = data['load_during_office_time']
+        load_after = data['load_after_office_time']
 
-        # Step 3: Get load after 2 minutes
-        snapshot = ref.get()
-        b1_after = snapshot.get('B1', '0')
-        b2_after = snapshot.get('B2', '0')
-        b3_after = snapshot.get('B3', '0')
-        load_after = 1.0 if b1_after == '1' or b2_after == '1' or b3_after == '1' else 0.0
+        # Convert times to minutes
+        start_minutes = time_to_minutes(start_time_str)
+        end_minutes = time_to_minutes(end_time_str)
 
-        # Step 4: Get current time as dummy office start/end
-        now = datetime.now()
-        office_start = now.strftime("%H:%M")
-        office_end = (now + pd.Timedelta(minutes=2)).strftime("%H:%M")
-
-        # Step 5: Predict using model
-        start_minutes = time_to_minutes(office_start)
-        end_minutes = time_to_minutes(office_end)
-
+        # Prediction
         input_data = [[start_minutes, end_minutes, load_during, load_after]]
-        prediction = model.predict(input_data)[0]
-
-        # Step 6: Update Firebase if prediction == 1
-        if prediction == 1:
-            ref.update({
-                'B1': '0',
-                'B2': '0',
-                'B3': '0'
-            })
-            action = "Appliances turned OFF"
-        else:
-            action = "No action needed"
-
-        # Step 7: Append to dataset
-        new_row = {
-            "Office Start Time": office_start,
-            "Office End Time": office_end,
-            "Load During Office Time": load_during,
-            "Load After Office Time": load_after,
-            "Action": prediction
-        }
-
-        df = pd.DataFrame([new_row])
-
-        if os.path.exists(dataset_file):
-            df_existing = pd.read_excel(dataset_file)
-            df_combined = pd.concat([df_existing, df], ignore_index=True)
-            df_combined.to_excel(dataset_file, index=False)
-        else:
-            df.to_excel(dataset_file, index=False)
-
-        # Step 8: Retrain model
-        load_model()
+        prediction = model.predict(input_data)
 
         return jsonify({
-            'prediction': int(prediction),
-            'action': action
+            'prediction': int(prediction[0]),
+            # 'explanation': '1 = turn off appliances, 0 = no action'  # Optional
         })
 
     except Exception as e:

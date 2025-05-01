@@ -36,7 +36,6 @@ def auto_shutoff():
 
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
-        predictions = {}
 
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
@@ -63,11 +62,10 @@ def auto_shutoff():
                     features_np = np.array([features])
 
                     prediction = model.predict(features_np)[0]
-                    predictions[key] = int(prediction)  # Convert to int before adding to dictionary
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
-                        ref.child(key).set("0")
+                        ref.child(key).set("0")  # Store as string "0"
                         usage_ref.child(key).delete()
                         print(f"🔴 {key} turned OFF by ML model.")
                 else:
@@ -75,10 +73,7 @@ def auto_shutoff():
             else:
                 usage_ref.child(key).delete()  # If appliance OFF, delete tracking
 
-        return jsonify({
-            "message": "Auto shut-off ML prediction check completed.",
-            "predictions": predictions  # Include predictions in response
-        })
+        return jsonify({"message": "Auto shut-off ML prediction check completed."})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -104,7 +99,8 @@ def predict():
 
         prediction = model.predict(features_np)[0]
 
-        return jsonify({"prediction": int(prediction)})
+        # Convert prediction to string for consistency with Firebase data format
+        return jsonify({"prediction": str(prediction)})  # Return as string ("0" or "1")
 
     except Exception as e:
         return jsonify({"error": str(e)}), 400

@@ -37,6 +37,8 @@ def auto_shutoff():
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
 
+        response_data = {}
+
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
                 start_time_str = usage_ref.child(key).get()
@@ -65,18 +67,25 @@ def auto_shutoff():
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
-                        ref.child(key).set("0")  # Store as string "0"
+                        ref.child(key).set("0")
                         usage_ref.child(key).delete()
                         print(f"🔴 {key} turned OFF by ML model.")
+                        response_data[key] = "0"  # Update response with '0' for OFF
+
+                    else:
+                        response_data[key] = "1"  # Keep it ON in response
+
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
+
             else:
                 usage_ref.child(key).delete()  # If appliance OFF, delete tracking
 
-        return jsonify({"message": "Auto shut-off ML prediction check completed."})
+        return jsonify(response_data)  # Return direct appliance data without predictions
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @app.route("/predict", methods=["POST"])

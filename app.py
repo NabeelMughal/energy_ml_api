@@ -48,11 +48,17 @@ def auto_shutoff():
                 load_during = 1  # Appliance is ON, so Load During = 1
                 load_after = 0   # Load After = 0 because we're checking shut-off immediately after 2 minutes
 
-                # Create features for the ML model
+                # Additional features, assume time_of_day and week_day as an example
+                time_of_day = 1 if now.hour >= 12 else 0  # Example: 0 for morning, 1 for evening
+                week_day = now.weekday()  # Weekday as an integer (0 = Monday, 6 = Sunday)
+
+                # Create features for the ML model (5 features)
                 features = [
-                    duration,
-                    load_during,
-                    load_after
+                    duration,     # Office Duration (Minutes)
+                    load_during,  # Load During Office Time
+                    load_after,   # Load After Office Time
+                    time_of_day,  # Time of Day (e.g., morning/evening)
+                    week_day      # Weekday (0 = Monday, 6 = Sunday)
                 ]
                 features_np = np.array([features])
 
@@ -74,6 +80,7 @@ def auto_shutoff():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/predict", methods=["POST"])
 def predict():

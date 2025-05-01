@@ -73,7 +73,7 @@ def auto_shutoff():
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
             else:
-                usage_ref.child(key).delete()  # If appliance OFF, delete tracking
+                usage_ref.child(key).delete()   # If appliance OFF, delete tracking
 
         return jsonify({
             "message": "Auto shut-off ML prediction check completed.",

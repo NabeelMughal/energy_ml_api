@@ -80,10 +80,16 @@ def auto_shutoff():
         ref = db.reference('Buttons')
         appliances = ref.get()
 
+        if not appliances:
+            return jsonify({"error": "No appliances data found in Firebase."}), 400
+
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
 
         for key, value in appliances.items():
+            # Convert value to integer if it's stored as a string
+            value = int(value)
+
             if value == 1:  # Appliance is ON
                 on_time_str = usage_ref.child(key).get()
                 if on_time_str:

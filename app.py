@@ -77,23 +77,36 @@ def predict():
 @app.route('/auto-shutoff', methods=['GET'])
 def auto_shutoff():
     try:
-        ref = db.reference('/')
-        appliances = ref.get()
+        ref = db.reference('Buttons')  # Get reference to Buttons
+        appliances = ref.get()  # Get appliance states from Firebase
 
-        # Check if appliances data exists
+        usage_ref = db.reference('Appliance Usage Time')  # Get reference to appliance usage times
+        now = datetime.utcnow()  # Get current time
+
+        # Ensure there is data for appliances
         if not appliances or 'B1' not in appliances or 'B2' not in appliances or 'B3' not in appliances:
             return jsonify({"error": "No appliances data found in Firebase."})
-        
-        # Print fetched data for debugging
+
         print(f"Appliances Data Retrieved: {appliances}")
 
-        # Check if any appliance is ON and should be turned off after 2 minutes
+        # Iterate through appliances and check if they need to be turned off
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
-                # Perform the auto-shutoff logic here
-                print(f"🔴 {key} will be turned OFF automatically.")
-        
+                # Retrieve the appliance's on-time from Firebase
+                on_time_str = usage_ref.child(key).get()  
+                if on_time_str:
+                    on_time = datetime.fromisoformat(on_time_str)  # Convert to datetime object
+                    if now - on_time >= timedelta(minutes=2):  # If 2 minutes have passed
+                        ref.child(key).set(0)  # Turn off the appliance
+                        usage_ref.child(key).delete()  # Remove usage time entry from Firebase
+                        print(f"🔴 {key} turned OFF automatically")
+                else:
+                    usage_ref.child(key).set(now.isoformat())  # Set current time as on-time if not present
+            else:
+                usage_ref.child(key).delete()  # If the appliance is OFF, delete its usage time
+
         return jsonify({"message": "Auto shut-off check completed."})
+    
     except Exception as e:
         return jsonify({"error": str(e)})
 

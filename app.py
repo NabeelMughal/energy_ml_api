@@ -1,11 +1,11 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, db
 import requests
 import os
 import json
 from datetime import datetime, timedelta
-from sklearn.linear_model import LogisticRegression
+import joblib
 import numpy as np
 
 app = Flask(__name__)
@@ -18,9 +18,12 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
 })
 
+# Load trained ML model once
+model = joblib.load("model.pkl")
+
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({"message": "API is running! Use POST /predict or GET /auto-shutoff"})
+    return jsonify({"message": "API is running! Use GET /auto-shutoff or POST /predict"})
 
 @app.route("/auto-shutoff", methods=["GET"])
 def auto_shutoff():
@@ -29,28 +32,32 @@ def auto_shutoff():
         appliances = ref.get()
 
         if not appliances:
-            return jsonify({"error": "No appliances data found in Firebase."}), 404
+            return jsonify({"error": "No appliance data found in Firebase."}), 404
 
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
 
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
-                # Create payload based on current time and +2 minutes
-                payload = {
-                    "office_start": now.strftime("%H:%M"),
-                    "office_end": (now + timedelta(minutes=2)).strftime("%H:%M"),
-                    "load_during": 1,
-                    "load_after": 0
-                }
+                office_start = now
+                office_end = now + timedelta(minutes=2)
+                duration = int((office_end - office_start).seconds // 60)
 
-                prediction_res = requests.post("https://web-production-0ef71.up.railway.app/predict", json=payload)
-                prediction = prediction_res.json().get("prediction")
+                # Features for ML model (as per your dataset)
+                features = [
+                    duration,
+                    1,  # load_during (assume 1 when ON)
+                    0   # load_after (assume 0 before shut-off)
+                ]
+                features_np = np.array([features])
+
+                prediction = model.predict(features_np)[0]
+                print(f"Prediction for {key} => {prediction}")
 
                 if prediction == 1:
-                    ref.child(key).set("0")  # Turn off the appliance
-                    usage_ref.child(key).delete()  # Remove usage time
-                    print(f"🔴 {key} turned OFF based on ML prediction")
+                    ref.child(key).set("0")  # Turn off appliance
+                    usage_ref.child(key).delete()
+                    print(f"🔴 {key} turned OFF by ML model.")
                 else:
                     usage_ref.child(key).set(now.isoformat())
             else:
@@ -67,19 +74,16 @@ def predict():
         data = request.json
         office_start = datetime.strptime(data['office_start'], "%H:%M")
         office_end = datetime.strptime(data['office_end'], "%H:%M")
-        duration = (office_end - office_start).seconds // 60
+        duration = int((office_end - office_start).seconds // 60)
 
         features = [
             duration,
             int(data['load_during']),
             int(data['load_after'])
         ]
+        features_np = np.array([features])
 
-        # Dummy ML model (replace with your trained model)
-        X = [[2, 1, 0], [2, 0, 1], [2, 1, 1], [2, 0, 0]]
-        y = [0, 1, 1, 0]
-        model = LogisticRegression().fit(X, y)
-        prediction = model.predict([features])[0]
+        prediction = model.predict(features_np)[0]
 
         return jsonify({"prediction": int(prediction)})
 

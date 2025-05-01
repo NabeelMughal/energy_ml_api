@@ -4,7 +4,7 @@ from firebase_admin import credentials, db
 import requests
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import joblib
 import numpy as np
 
@@ -18,7 +18,7 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
 })
 
-# Load trained ML model once
+# Load trained ML model
 model = joblib.load("model.pkl")
 
 @app.route("/", methods=["GET"])
@@ -35,7 +35,7 @@ def auto_shutoff():
             return jsonify({"error": "No appliance data found in Firebase."}), 404
 
         usage_ref = db.reference('Appliance Usage Time')
-        now = datetime.utcnow()
+        now = datetime.now()  # Local time instead of UTC
 
         response_data = {}
 
@@ -44,19 +44,18 @@ def auto_shutoff():
                 start_time_str = usage_ref.child(key).get()
 
                 if not start_time_str:
-                    usage_ref.child(key).set(now.isoformat())  # First time ON, store current time
-                    print(f"Initial ON time for {key}: {now.isoformat()}")
+                    usage_ref.child(key).set(now.isoformat())
+                    print(f"[INIT] {key} turned ON at {now.isoformat()}")
                     continue
 
-                # Parse stored time
                 start_time = datetime.fromisoformat(start_time_str)
                 elapsed = (now - start_time).total_seconds() / 60
-                print(f"Elapsed time for {key}: {elapsed} minutes")
+                print(f"[DEBUG] {key}: Elapsed time = {elapsed:.2f} minutes")
 
-                if elapsed >= 2:  # Only if 2 minutes passed
+                if elapsed >= 2:
                     duration = 2
                     load_during = 1
-                    load_after = 0  # Default, or update later
+                    load_after = 0  # Default
                     time_of_day = 1 if now.hour >= 12 else 0
                     week_day = now.weekday()
 
@@ -64,24 +63,24 @@ def auto_shutoff():
                     features_np = np.array([features])
 
                     prediction = model.predict(features_np)[0]
-                    print(f"Prediction for {key} => {prediction}")
+                    print(f"[ML] {key} - Features: {features} => Prediction: {prediction}")
 
                     if prediction == 1:
-                        print(f"Turning OFF {key} in Firebase.")
                         ref.child(key).set("0")
                         usage_ref.child(key).delete()
-                        print(f"🔴 {key} turned OFF by ML model.")
+                        print(f"[ACTION] 🔴 {key} turned OFF and usage time deleted.")
                     else:
-                        print(f"✅ {key} remains ON.")  # Keep it ON in response
+                        print(f"[INFO] ✅ {key} stays ON based on prediction.")
                 else:
-                    print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
-
+                    print(f"[WAIT] {key} has only been ON for {elapsed:.2f} mins.")
             else:
-                usage_ref.child(key).delete()  # If appliance OFF, delete tracking
+                usage_ref.child(key).delete()
+                print(f"[CLEANUP] {key} is OFF — usage time deleted.")
 
-        return jsonify(response_data)  # Return direct appliance data without predictions
+        return jsonify({"status": "Auto shut-off check completed."})
 
     except Exception as e:
+        print(f"[ERROR] {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -93,23 +92,22 @@ def predict():
         office_end = datetime.strptime(data['office_end'], "%H:%M")
         duration = int((office_end - office_start).seconds // 60)
 
-        # Ensure all features are included
         features = [
             duration,
             int(data['load_during']),
             int(data['load_after']),
-            int(data['time_of_day']),  # time_of_day (morning/evening)
-            int(data['week_day'])  # week_day (Monday to Sunday)
+            int(data['time_of_day']),
+            int(data['week_day'])
         ]
         features_np = np.array([features])
 
         prediction = model.predict(features_np)[0]
-
-        # Convert prediction to string for consistency with Firebase data format
-        return jsonify({"prediction": str(prediction)})  # Return as string ("0" or "1")
+        return jsonify({"prediction": str(prediction)})
 
     except Exception as e:
+        print(f"[PREDICT ERROR] {str(e)}")
         return jsonify({"error": str(e)}), 400
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

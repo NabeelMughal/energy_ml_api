@@ -87,10 +87,13 @@ def predict():
         office_end = datetime.strptime(data['office_end'], "%H:%M")
         duration = int((office_end - office_start).seconds // 60)
 
+        # Ensure all features are included
         features = [
             duration,
             int(data['load_during']),
-            int(data['load_after'])
+            int(data['load_after']),
+            int(data['time_of_day']),  # time_of_day (morning/evening)
+            int(data['week_day'])  # week_day (Monday to Sunday)
         ]
         features_np = np.array([features])
 

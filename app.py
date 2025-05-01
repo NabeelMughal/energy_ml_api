@@ -77,7 +77,7 @@ def predict():
 @app.route('/auto-shutoff', methods=['GET'])
 def auto_shutoff():
     try:
-        ref = db.reference('Buttons')  # Get reference to Buttons
+        ref = db.reference('/')  # Get reference to Buttons
         appliances = ref.get()  # Get appliance states from Firebase
 
         usage_ref = db.reference('Appliance Usage Time')  # Get reference to appliance usage times

@@ -36,6 +36,7 @@ def auto_shutoff():
 
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
+        predictions = {}
 
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
@@ -62,6 +63,7 @@ def auto_shutoff():
                     features_np = np.array([features])
 
                     prediction = model.predict(features_np)[0]
+                    predictions[key] = prediction  # Store prediction for each appliance
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
@@ -73,7 +75,10 @@ def auto_shutoff():
             else:
                 usage_ref.child(key).delete()  # If appliance OFF, delete tracking
 
-        return jsonify({"message": "Auto shut-off ML prediction check completed."})
+        return jsonify({
+            "message": "Auto shut-off ML prediction check completed.",
+            "predictions": predictions  # Include predictions in response
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

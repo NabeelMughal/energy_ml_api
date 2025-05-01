@@ -1,7 +1,8 @@
+firebase-admin
 flask
 flask-cors
 pandas
+numpy
 scikit-learn
 joblib
-openpyxl
-firebase-admin
+datetime

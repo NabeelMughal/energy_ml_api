@@ -37,44 +37,40 @@ def auto_shutoff():
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
 
-        for key, value in appliances.items():
+                for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
-                # Time after 2 minutes
-                office_start = now
-                office_end = now + timedelta(minutes=2)
-                duration = int((office_end - office_start).seconds // 60)  # 2 minutes
+                start_time_str = usage_ref.child(key).get()
 
-                # Assuming that 'Load During' and 'Load After' are set in Firebase (change based on actual data)
-                load_during = 1  # Appliance is ON, so Load During = 1
-                load_after = 0   # Load After = 0 because we're checking shut-off immediately after 2 minutes
+                if not start_time_str:
+                    usage_ref.child(key).set(now.isoformat())  # First time ON, store current time
+                    continue
 
-                # Additional features, assume time_of_day and week_day as an example
-                time_of_day = 1 if now.hour >= 12 else 0  # Example: 0 for morning, 1 for evening
-                week_day = now.weekday()  # Weekday as an integer (0 = Monday, 6 = Sunday)
+                # Parse the stored time
+                start_time = datetime.fromisoformat(start_time_str)
+                elapsed = (now - start_time).total_seconds() / 60
 
-                # Create features for the ML model (5 features)
-                features = [
-                    duration,     # Office Duration (Minutes)
-                    load_during,  # Load During Office Time
-                    load_after,   # Load After Office Time
-                    time_of_day,  # Time of Day (e.g., morning/evening)
-                    week_day      # Weekday (0 = Monday, 6 = Sunday)
-                ]
-                features_np = np.array([features])
+                if elapsed >= 2:  # After 2 minutes, apply ML prediction
+                    duration = 2
+                    load_during = 1
+                    load_after = 0  # assume default
+                    time_of_day = 1 if now.hour >= 12 else 0
+                    week_day = now.weekday()
 
-                # Make prediction using the model
-                prediction = model.predict(features_np)[0]
-                print(f"Prediction for {key} => {prediction}")
+                    features = [duration, load_during, load_after, time_of_day, week_day]
+                    features_np = np.array([features])
 
-                # If model predicts that appliance should be turned off
-                if prediction == 1:
-                    ref.child(key).set("0")  # Turn off appliance (set value to 0)
-                    usage_ref.child(key).delete()  # Remove usage time data
-                    print(f"🔴 {key} turned OFF by ML model.")
+                    prediction = model.predict(features_np)[0]
+                    print(f"Prediction for {key} => {prediction}")
+
+                    if prediction == 1:
+                        ref.child(key).set("0")  # Turn off appliance
+                        usage_ref.child(key).delete()
+                        print(f"🔴 {key} turned OFF by ML model.")
                 else:
-                    usage_ref.child(key).set(now.isoformat())  # Keep usage time if still ON
+                    print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
             else:
-                usage_ref.child(key).delete()  # If appliance is OFF, delete usage time
+                usage_ref.child(key).delete()  # Appliance OFF, remove tracking
+  # If appliance is OFF, delete usage time
 
         return jsonify({"message": "Auto shut-off ML prediction check completed."})
 

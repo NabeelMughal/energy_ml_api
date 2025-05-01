@@ -54,7 +54,6 @@ def auto_shutoff():
                 print(f"Elapsed time for {key}: {elapsed} minutes")
 
                 if elapsed >= 2:  # Only if 2 minutes passed
-                    # Ensure correct indentation
                     duration = 2
                     load_during = 1
                     load_after = 0  # Default, or update later
@@ -68,7 +67,7 @@ def auto_shutoff():
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
-                        # Appliance OFF, set it to 0 and delete usage time
+                        print(f"Turning OFF {key} in Firebase.")
                         ref.child(key).set("0")
                         usage_ref.child(key).delete()
                         print(f"🔴 {key} turned OFF by ML model.")

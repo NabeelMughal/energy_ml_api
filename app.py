@@ -17,7 +17,7 @@ firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 creds_dict = json.loads(firebase_creds_json)
 cred = credentials.Certificate(creds_dict)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/.json?auth=jtppJNy1wyyaOyNhZ52q7jQMWyS8AFQ4kYKPn1Qw'
+    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
 })
 
 app = Flask(__name__)
@@ -77,7 +77,7 @@ def predict():
 @app.route('/auto-shutoff', methods=['GET'])
 def auto_shutoff():
     try:
-        ref = db.reference('Buttons')
+        ref = db.reference('/')
         appliances = ref.get()
 
         # Log the fetched data from Firebase

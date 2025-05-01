@@ -37,7 +37,7 @@ def auto_shutoff():
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
 
-                for key, value in appliances.items():
+        for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
                 start_time_str = usage_ref.child(key).get()
 
@@ -45,14 +45,14 @@ def auto_shutoff():
                     usage_ref.child(key).set(now.isoformat())  # First time ON, store current time
                     continue
 
-                # Parse the stored time
+                # Parse stored time
                 start_time = datetime.fromisoformat(start_time_str)
                 elapsed = (now - start_time).total_seconds() / 60
 
-                if elapsed >= 2:  # After 2 minutes, apply ML prediction
+                if elapsed >= 2:  # Only if 2 minutes passed
                     duration = 2
                     load_during = 1
-                    load_after = 0  # assume default
+                    load_after = 0  # Default, or update later
                     time_of_day = 1 if now.hour >= 12 else 0
                     week_day = now.weekday()
 
@@ -63,14 +63,13 @@ def auto_shutoff():
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
-                        ref.child(key).set("0")  # Turn off appliance
+                        ref.child(key).set("0")
                         usage_ref.child(key).delete()
                         print(f"🔴 {key} turned OFF by ML model.")
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
             else:
-                usage_ref.child(key).delete()  # Appliance OFF, remove tracking
-  # If appliance is OFF, delete usage time
+                usage_ref.child(key).delete()  # If appliance OFF, delete tracking
 
         return jsonify({"message": "Auto shut-off ML prediction check completed."})
 

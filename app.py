@@ -39,29 +39,36 @@ def auto_shutoff():
 
         for key, value in appliances.items():
             if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
+                # Time after 2 minutes
                 office_start = now
                 office_end = now + timedelta(minutes=2)
-                duration = int((office_end - office_start).seconds // 60)
+                duration = int((office_end - office_start).seconds // 60)  # 2 minutes
 
-                # Features for ML model (as per your dataset)
+                # Assuming that 'Load During' and 'Load After' are set in Firebase (change based on actual data)
+                load_during = 1  # Appliance is ON, so Load During = 1
+                load_after = 0   # Load After = 0 because we're checking shut-off immediately after 2 minutes
+
+                # Create features for the ML model
                 features = [
                     duration,
-                    1,  # load_during (assume 1 when ON)
-                    0   # load_after (assume 0 before shut-off)
+                    load_during,
+                    load_after
                 ]
                 features_np = np.array([features])
 
+                # Make prediction using the model
                 prediction = model.predict(features_np)[0]
                 print(f"Prediction for {key} => {prediction}")
 
+                # If model predicts that appliance should be turned off
                 if prediction == 1:
-                    ref.child(key).set("0")  # Turn off appliance
-                    usage_ref.child(key).delete()
+                    ref.child(key).set("0")  # Turn off appliance (set value to 0)
+                    usage_ref.child(key).delete()  # Remove usage time data
                     print(f"🔴 {key} turned OFF by ML model.")
                 else:
-                    usage_ref.child(key).set(now.isoformat())
+                    usage_ref.child(key).set(now.isoformat())  # Keep usage time if still ON
             else:
-                usage_ref.child(key).delete()
+                usage_ref.child(key).delete()  # If appliance is OFF, delete usage time
 
         return jsonify({"message": "Auto shut-off ML prediction check completed."})
 

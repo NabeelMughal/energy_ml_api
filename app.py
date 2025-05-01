@@ -80,7 +80,8 @@ def auto_shutoff():
         ref = db.reference('Buttons')
         appliances = ref.get()
 
-        print(f"Appliances Data Retrieved: {appliances}")  # Log the data to see what is being fetched
+        # Log the fetched data from Firebase
+        print(f"Appliances Data Retrieved: {appliances}")
 
         if not appliances:
             return jsonify({"error": "No appliances data found in Firebase."}), 400

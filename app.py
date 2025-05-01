@@ -91,7 +91,7 @@ def auto_shutoff():
 
         for key, value in appliances.items():
             # Convert value to integer if it's stored as a string
-            value = int(value)
+            value = int(value)  # Convert the value to an integer
 
             if value == 1:  # Appliance is ON
                 on_time_str = usage_ref.child(key).get()

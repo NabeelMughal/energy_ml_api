@@ -54,26 +54,25 @@ def auto_shutoff():
                 print(f"Elapsed time for {key}: {elapsed} minutes")
 
                 if elapsed >= 2:  # Only if 2 minutes passed
-                    duration = 2
-                    load_during = 1
-                    load_after = 0  # Default, or update later
-                    time_of_day = 1 if now.hour >= 12 else 0
-                    week_day = now.weekday()
+    duration = 2
+    load_during = 1
+    load_after = 0  # Default, or update later
+    time_of_day = 1 if now.hour >= 12 else 0
+    week_day = now.weekday()
 
-                    features = [duration, load_during, load_after, time_of_day, week_day]
-                    features_np = np.array([features])
+    features = [duration, load_during, load_after, time_of_day, week_day]
+    features_np = np.array([features])
 
-                    prediction = model.predict(features_np)[0]
-                    print(f"Prediction for {key} => {prediction}")
+    prediction = model.predict(features_np)[0]
+    print(f"Prediction for {key} => {prediction}")
 
-                    if prediction == 1:
-                        ref.child(key).set("0")
-                        usage_ref.child(key).delete()
-                        print(f"🔴 {key} turned OFF by ML model.")
-                        response_data[key] = "0"  # Update response with '0' for OFF
-
-                    else:
-                        response_data[key] = "1"  # Keep it ON in response
+    if prediction == 1:
+        # Appliance OFF, set it to 0 and delete usage time
+        ref.child(key).set("0")
+        usage_ref.child(key).delete()
+        print(f"🔴 {key} turned OFF by ML model.")
+    else:
+        print(f"✅ {key} remains ON.")  # Keep it ON in response
 
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")

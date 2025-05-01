@@ -17,7 +17,7 @@ firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 creds_dict = json.loads(firebase_creds_json)
 cred = credentials.Certificate(creds_dict)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
+    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/.json?auth=jtppJNy1wyyaOyNhZ52q7jQMWyS8AFQ4kYKPn1Qw'
 })
 
 app = Flask(__name__)

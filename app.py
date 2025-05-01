@@ -63,7 +63,7 @@ def auto_shutoff():
                     features_np = np.array([features])
 
                     prediction = model.predict(features_np)[0]
-                    predictions[key] = prediction  # Store prediction for each appliance
+                    predictions[key] = int(prediction)  # Convert to int before adding to dictionary
                     print(f"Prediction for {key} => {prediction}")
 
                     if prediction == 1:
@@ -73,7 +73,7 @@ def auto_shutoff():
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
             else:
-                usage_ref.child(key).delete()   # If appliance OFF, delete tracking
+                usage_ref.child(key).delete()  # If appliance OFF, delete tracking
 
         return jsonify({
             "message": "Auto shut-off ML prediction check completed.",

@@ -1,29 +1,37 @@
 import os
-import joblib
-import numpy as np
-from datetime import datetime
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+import json
 import firebase_admin
 from firebase_admin import credentials, db
+from datetime import datetime
+import numpy as np
+import pickle
+from flask import Flask, jsonify
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)
 
-# Firebase Admin SDK initialization
-cred = credentials.Certificate(os.getenv("FIREBASE_CREDENTIALS_JSON"))
+# Load Firebase credentials from environment variable
+firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
+
+if not firebase_credentials_json:
+    raise ValueError("Firebase credentials JSON not found in environment variable")
+
+# Convert JSON string to dictionary
+cred_dict = json.loads(firebase_credentials_json)
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://your-database-name.firebaseio.com/'  # Replace with your Firebase Realtime Database URL
+    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'  # Replace with your Firebase Realtime Database URL
 })
 
-# Load the pre-trained model
-model = joblib.load("model.pkl")
+# Load the trained ML model
+model = pickle.load(open("model.pkl", "rb"))
 
 @app.route("/auto-shutoff", methods=["GET"])
 def auto_shutoff():
     try:
-        ref = db.reference('/')
+        ref = db.reference('/')  # Firebase root reference
         appliances = ref.get()
 
         if not appliances:
@@ -84,5 +92,6 @@ def auto_shutoff():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

@@ -1,8 +1,7 @@
-firebase-admin
 flask
 flask-cors
-pandas
-numpy
-scikit-learn
+firebase-admin
 joblib
-pytz
+scikit-learn
+numpy
+pandas

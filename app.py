@@ -24,6 +24,7 @@ cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'  # Replace with your Firebase Realtime Database URL
 })
+
 # Load the trained ML model
 model = pickle.load(open("model.pkl", "rb"))
 

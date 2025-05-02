@@ -16,27 +16,25 @@ firebase_credentials_json = os.getenv("FIREBASE_CREDENTIALS_JSON")
 if not firebase_credentials_json:
     raise ValueError("Firebase credentials JSON not found in environment variable")
 
-# Convert JSON string to dictionary
 cred_dict = json.loads(firebase_credentials_json)
 
-# Initialize Firebase Admin SDK
+# Initialize Firebase
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'  # Replace with your Firebase Realtime Database URL
+    'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'
 })
 
-# Load the trained ML model
+# Load trained ML model
 model = pickle.load(open("model.pkl", "rb"))
 
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({"message": "API is running! Use GET /auto-shutoff or POST /predict"})
-
+    return jsonify({"message": "API is running! Use GET /auto-shutoff"})
 
 @app.route("/auto-shutoff", methods=["GET"])
 def auto_shutoff():
     try:
-        ref = db.reference('/')  # Firebase root reference
+        ref = db.reference('/')
         appliances = ref.get()
 
         if not appliances:
@@ -44,55 +42,45 @@ def auto_shutoff():
 
         usage_ref = db.reference('Appliance Usage Time')
         now = datetime.utcnow()
-
         response_data = {}
 
         for key, value in appliances.items():
-            if key in ['B1', 'B2', 'B3'] and value == "1":  # Appliance is ON
+            if key in ['B1', 'B2', 'B3'] and value == "1":
                 start_time_str = usage_ref.child(key).get()
 
                 if not start_time_str:
-                    usage_ref.child(key).set(now.isoformat())  # First time ON, store current time
+                    usage_ref.child(key).set(now.isoformat())
                     print(f"Initial ON time for {key}: {now.isoformat()}")
                     continue
 
-                # Parse stored time
                 start_time = datetime.fromisoformat(start_time_str)
                 elapsed = (now - start_time).total_seconds() / 60
-                print(f"Elapsed time for {key}: {elapsed} minutes")
+                print(f"Elapsed time for {key}: {elapsed:.2f} minutes")
 
-                if elapsed >= 2:  # Only if 2 minutes passed
+                if elapsed >= 2:
                     duration = 2
                     load_during = 1
-                    load_after = 0  # Default, or update later
-                    time_of_day = 1 if now.hour >= 12 else 0
-                    week_day = now.weekday()
+                    load_after = 1  # Tum chaaho to yeh logic improve kar sakte ho based on actual sensor reading
 
-                    features = [duration, load_during, load_after, time_of_day, week_day]
+                    features = [duration, load_during, load_after]
                     features_np = np.array([features], dtype=np.float64)
 
-                    # Print input features for debugging
                     print(f"Input features for {key}: {features}")
-                    
                     prediction = model.predict(features_np)[0]
-                    
-                    # Print prediction result for debugging
                     print(f"Prediction for {key}: {prediction}")
 
                     if prediction == 1:
-                        print(f"Turning OFF {key} in Firebase")
                         ref.child(key).set("0")
                         usage_ref.child(key).delete()
                         print(f"🔴 {key} turned OFF by ML model.")
                     else:
-                        print(f"✅ {key} remains ON.")  # Keep it ON in response
+                        print(f"✅ {key} remains ON.")
                 else:
                     print(f"⏳ {key} ON for only {elapsed:.2f} minutes. Waiting...")
-
             else:
-                usage_ref.child(key).delete()  # If appliance OFF, delete tracking
+                usage_ref.child(key).delete()
 
-        return jsonify(response_data)  # Return direct appliance data without predictions
+        return jsonify(response_data)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

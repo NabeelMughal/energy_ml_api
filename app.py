@@ -24,9 +24,13 @@ cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {
     'databaseURL': 'https://energy-monitoring-and-tarif-default-rtdb.firebaseio.com/'  # Replace with your Firebase Realtime Database URL
 })
-
 # Load the trained ML model
 model = pickle.load(open("model.pkl", "rb"))
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "API is running! Use GET /auto-shutoff or POST /predict"})
+
 
 @app.route("/auto-shutoff", methods=["GET"])
 def auto_shutoff():
